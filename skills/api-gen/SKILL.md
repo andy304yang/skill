@@ -37,15 +37,23 @@ If no swagger URL is provided, ask the user for it before continuing.
 
 ### Step 1 — Check Prerequisites
 
-Run the following checks and fix any issues before proceeding:
+Check each tool. **Only install if not already present — do NOT run the install command if the tool is already found.**
 
 ```bash
-# Check openapi-generator
-which openapi-generator || brew install openapi-generator
-
-# Check qxun-api-generator
-npx qxun-api-generator --version 2>/dev/null || npm install -g qxun-api-generator
+# Only run this if openapi-generator is NOT installed
+which openapi-generator
 ```
+
+- If the above returns a path → already installed, skip. Do NOT run brew install.
+- If it returns nothing → run: `brew install openapi-generator`
+
+```bash
+# Only run this if qxun-api-generator is NOT installed
+npx qxun-api-generator --version 2>/dev/null
+```
+
+- If the above prints a version → already installed, skip. Do NOT run npm install.
+- If it fails → run: `npm install -g qxun-api-generator`
 
 ---
 
