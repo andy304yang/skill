@@ -1,6 +1,6 @@
 ---
 name: api-gen
-description: Generate a type-safe TypeScript API client from a Swagger/OpenAPI spec. Sets up a custom Axios HTTP client with auth, error handling, and global error events. Configures TanStack Query (useQuery/useMutation) patterns. Use when the user wants to: generate API client from swagger, create typed API hooks, set up axios interceptors, integrate OpenAPI with React Query, auto-generate frontend API code.
+description: "Generate a type-safe TypeScript API client from a Swagger/OpenAPI spec. Sets up a custom Axios HTTP client with auth, error handling, and global error events. Configures TanStack Query (useQuery/useMutation) patterns. Use when the user wants to generate API client from swagger, create typed API hooks, set up axios interceptors, integrate OpenAPI with React Query, auto-generate frontend API code."
 ---
 
 # API Generator Skill
