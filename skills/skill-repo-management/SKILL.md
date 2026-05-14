@@ -1,78 +1,122 @@
 ---
-name: skill-repo-management
-description: "Manage the skill monorepo at github.com/andy304yang/skill. Clone, add skills, commit, push. Use when user asks to add, update, or sync skills to the skill monorepo."
+name: andy304yang-repos-management
+description: "Manage all Andy Yang GitHub repos: andy304yang/Blog (Next.js 15 personal blog), andy304yang/Component (component library, currently empty), andy304yang/skill (skill monorepo). Clone, pull, push, deploy across all repos. GitHub PAT in ~/.git-credentials. Use when user wants to sync, update, or manage any of these repos."
 ---
 
-# Skill Repository Management
+# Andy304yang Repos Management
 
-Manage skills in the monorepo `github.com/andy304yang/skill`. Each skill lives in `skills/<skill-name>/SKILL.md`.
+Manage all GitHub repos under `andy304yang` account. GitHub PAT is stored in `~/.git-credentials`.
 
-## GitHub Auth
-
-The GitHub PAT is stored in `~/.git-credentials`. Read it before git operations:
+## Quick Auth
 
 ```bash
 GITHUB_PAT=$(grep -o 'ghp_[^@]*' ~/.git-credentials | head -1)
 echo "Token: ${GITHUB_PAT:0:8}..."
 ```
 
-## Clone the Repo
+## Repo Overview
 
-```bash
-git clone https://github.com/andy304yang/skill.git /tmp/skill-repo
-cd /tmp/skill-repo
-git config credential.helper store
-```
+| Repo | Path (local) | Description |
+|------|-------------|-------------|
+| `andy304yang/Blog` | `/tmp/Blog` | Next.js 15 personal blog (mclarenai.cn) |
+| `andy304yang/Component` | `/tmp/Component` | Component library (empty, under development) |
+| `andy304yang/skill` | `/tmp/skill-repo` | Skill monorepo |
 
-Or with token:
+## Clone All Repos
+
 ```bash
 GITHUB_PAT=$(grep -o 'ghp_[^@]*' ~/.git-credentials | head -1)
+
+git clone https://${GITHUB_PAT}@github.com/andy304yang/Blog.git /tmp/Blog
+git clone https://${GITHUB_PAT}@github.com/andy304yang/Component.git /tmp/Component
 git clone https://${GITHUB_PAT}@github.com/andy304yang/skill.git /tmp/skill-repo
 ```
 
-## Add / Update a Skill
+## Clone Single Repo
 
 ```bash
-# Create or update skill directory
-mkdir -p skills/<skill-name>
-# Write SKILL.md into skills/<skill-name>/
-
-# Commit and push
-cd /tmp/skill-repo
-git add skills/<skill-name>/
-git commit -m "feat: add <skill-name> skill"
-
 GITHUB_PAT=$(grep -o 'ghp_[^@]*' ~/.git-credentials | head -1)
-git remote set-url origin https://${GITHUB_PAT}@github.com/andy304yang/skill.git
+REPO=${1:-Blog}  # Blog, Component, or skill
+TARGET="/tmp/$REPO"
+git clone "https://${GITHUB_PAT}@github.com/andy304yang/${REPO}.git" "$TARGET"
+```
+
+## Push Changes
+
+```bash
+GITHUB_PAT=$(grep -o 'ghp_[^@]*' ~/.git-credentials | head -1)
+REPO=${1:-skill}
+TARGET="/tmp/$REPO"
+
+cd "$TARGET"
+git remote set-url origin "https://${GITHUB_PAT}@github.com/andy304yang/${REPO}.git"
+git add .
+git commit -m "${2:-update}"
 git push origin main
 ```
 
-## Sync Latest from Remote
+## Sync / Pull Latest
 
 ```bash
-cd /tmp/skill-repo
 GITHUB_PAT=$(grep -o 'ghp_[^@]*' ~/.git-credentials | head -1)
-git remote set-url origin https://${GITHUB_PAT}@github.com/andy304yang/skill.git
+REPO=${1:-skill}
+TARGET="/tmp/$REPO"
+
+cd "$TARGET"
+git remote set-url origin "https://${GITHUB_PAT}@github.com/andy304yang/${REPO}.git"
+git pull origin main --rebase
+```
+
+## Blog Deploy (see `personal-blog-deploy` skill for full details)
+
+```bash
+# Quick deploy: pull latest + rebuild container on server
+ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84 << 'EOF'
+GITHUB_PAT=$(grep -o 'ghp_[^@]*' ~/.git-credentials | head -1)
+cd /opt/blog
+git remote set-url origin https://${GITHUB_PAT}@github.com/andy304yang/Blog.git
 git pull origin main
+sudo docker compose -f /opt/blog/docker-compose.yml up -d --build
+sudo docker logs blog --tail 10
+EOF
 ```
 
-## Skill Format
+## Skill Repo: Add / Update a Skill
 
-Each skill needs:
-- `SKILL.md` with YAML frontmatter (name, description)
-- Clear trigger conditions in description
-- Numbered steps with exact commands
-- Verification steps
-- **NO secrets/tokens in the skill file** — reference ~/.git-credentials instead
+```bash
+# 1. Clone if not exists
+GITHUB_PAT=$(grep -o 'ghp_[^@]*' ~/.git-credentials | head -1)
+[ ! -d /tmp/skill-repo ] && git clone "https://${GITHUB_PAT}@github.com/andy304yang/skill.git" /tmp/skill-repo
 
-Example `SKILL.md` frontmatter:
-```yaml
----
-name: my-skill
-description: "Do X. Use when user wants X. Prerequisites: A, B."
----
+# 2. Create or update skill
+SKILL_NAME="my-new-skill"
+mkdir -p /tmp/skill-repo/skills/$SKILL_NAME
+# Write SKILL.md here...
+
+# 3. Commit and push
+cd /tmp/skill-repo
+git add skills/$SKILL_NAME/
+git commit -m "feat: add $SKILL_NAME skill"
+git push origin main
 ```
 
-## Important: No Secrets in Skill Files
+## Component Repo
 
-Do NOT write actual tokens or secrets into skill markdown files. GitHub will block the push. Use placeholders and reference `~/.git-credentials` at runtime.
+Currently empty. To populate it:
+
+```bash
+GITHUB_PAT=$(grep -o 'ghp_[^@]*' ~/.git-credentials | head -1)
+cd /tmp/Component
+
+# Example: initialize with a component package structure
+mkdir -p src/components
+# Add your components...
+
+git add .
+git commit -m "feat: initial components"
+git push origin main
+```
+
+## Important: No Secrets in Files
+
+Never write actual tokens or PATs into any markdown/code files. Use `~/.git-credentials` at runtime. GitHub will block pushes containing secrets.
