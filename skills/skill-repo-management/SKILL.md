@@ -1,122 +1,86 @@
 ---
-name: andy304yang-repos-management
-description: "Manage all Andy Yang GitHub repos: andy304yang/Blog (Next.js 15 personal blog), andy304yang/Component (component library, currently empty), andy304yang/skill (skill monorepo). Clone, pull, push, deploy across all repos. GitHub PAT in ~/.git-credentials. Use when user wants to sync, update, or manage any of these repos."
+name: skill-repo-management
+description: "Manage the skill monorepo at github.com/andy304yang/skill. Clone, add skills, commit, push. Also covers Blog (andy304yang/Blog), Component (andy304yang/Component) management. Use when user asks to add, update, or sync skills to the skill monorepo, or manage GitHub repos."
 ---
 
-# Andy304yang Repos Management
+# Skill Repository Management
 
-Manage all GitHub repos under `andy304yang` account. GitHub PAT is stored in `~/.git-credentials`.
+Manage skills in the monorepo `github.com/andy304yang/skill`. Each skill lives in `skills/<skill-name>/SKILL.md`.
 
-## Quick Auth
+Also manages:
+- `github.com/andy304yang/Blog` — Next.js 15 personal blog (branch: `master`)
+- `github.com/andy304yang/Component` — Vite + React component library (branch: `main`)
+- `github.com/andy304yang/skill` — Skill monorepo (branch: `main`)
+
+## GitHub Auth
+
+The GitHub PAT is stored in `~/.git-credentials`. Read it before git operations:
 
 ```bash
 GITHUB_PAT=$(grep -o 'ghp_[^@]*' ~/.git-credentials | head -1)
 echo "Token: ${GITHUB_PAT:0:8}..."
 ```
 
-## Repo Overview
+## IMPORTANT: No Secrets in Skill Files
 
-| Repo | Path (local) | Description |
-|------|-------------|-------------|
-| `andy304yang/Blog` | `/tmp/Blog` | Next.js 15 personal blog (mclarenai.cn) |
-| `andy304yang/Component` | `/tmp/Component` | Component library (empty, under development) |
-| `andy304yang/skill` | `/tmp/skill-repo` | Skill monorepo |
+Do NOT write actual tokens or secrets into skill markdown files. GitHub has push protection that scans commits for secrets (including `ghp_` tokens) and will block the entire push if found. All secrets must be extracted from `~/.git-credentials` at runtime.
 
-## Clone All Repos
+## Clone Any Repo
 
 ```bash
 GITHUB_PAT=$(grep -o 'ghp_[^@]*' ~/.git-credentials | head -1)
+REPO=$1  # e.g. skill, Blog, Component
+DEST=${2:-/tmp/$REPO}  # default destination
 
-git clone https://${GITHUB_PAT}@github.com/andy304yang/Blog.git /tmp/Blog
-git clone https://${GITHUB_PAT}@github.com/andy304yang/Component.git /tmp/Component
-git clone https://${GITHUB_PAT}@github.com/andy304yang/skill.git /tmp/skill-repo
+git clone https://${GITHUB_PAT}@github.com/andy304yang/$REPO.git "$DEST"
 ```
 
-## Clone Single Repo
+## Add / Update a Skill
 
 ```bash
+REPO_DIR=/tmp/skill-repo
+mkdir -p "$REPO_DIR/skills/<skill-name>"
+
+# Write SKILL.md into skills/<skill-name>/
+
+cd "$REPO_DIR"
 GITHUB_PAT=$(grep -o 'ghp_[^@]*' ~/.git-credentials | head -1)
-REPO=${1:-Blog}  # Blog, Component, or skill
-TARGET="/tmp/$REPO"
-git clone "https://${GITHUB_PAT}@github.com/andy304yang/${REPO}.git" "$TARGET"
-```
+git remote set-url origin https://${GITHUB_PAT}@github.com/andy304yang/skill.git
 
-## Push Changes
+git config user.email "agent@hermes.ai" 2>/dev/null || true
+git config user.name "Hermes Agent" 2>/dev/null || true
 
-```bash
-GITHUB_PAT=$(grep -o 'ghp_[^@]*' ~/.git-credentials | head -1)
-REPO=${1:-skill}
-TARGET="/tmp/$REPO"
-
-cd "$TARGET"
-git remote set-url origin "https://${GITHUB_PAT}@github.com/andy304yang/${REPO}.git"
-git add .
-git commit -m "${2:-update}"
+git add skills/<skill-name>/
+git commit -m "feat: add <skill-name> skill"
 git push origin main
 ```
 
-## Sync / Pull Latest
+## Sync Latest from Remote
 
 ```bash
 GITHUB_PAT=$(grep -o 'ghp_[^@]*' ~/.git-credentials | head -1)
-REPO=${1:-skill}
-TARGET="/tmp/$REPO"
-
-cd "$TARGET"
-git remote set-url origin "https://${GITHUB_PAT}@github.com/andy304yang/${REPO}.git"
-git pull origin main --rebase
-```
-
-## Blog Deploy (see `personal-blog-deploy` skill for full details)
-
-```bash
-# Quick deploy: pull latest + rebuild container on server
-ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84 << 'EOF'
-GITHUB_PAT=$(grep -o 'ghp_[^@]*' ~/.git-credentials | head -1)
-cd /opt/blog
-git remote set-url origin https://${GITHUB_PAT}@github.com/andy304yang/Blog.git
-git pull origin main
-sudo docker compose -f /opt/blog/docker-compose.yml up -d --build
-sudo docker logs blog --tail 10
-EOF
-```
-
-## Skill Repo: Add / Update a Skill
-
-```bash
-# 1. Clone if not exists
-GITHUB_PAT=$(grep -o 'ghp_[^@]*' ~/.git-credentials | head -1)
-[ ! -d /tmp/skill-repo ] && git clone "https://${GITHUB_PAT}@github.com/andy304yang/skill.git" /tmp/skill-repo
-
-# 2. Create or update skill
-SKILL_NAME="my-new-skill"
-mkdir -p /tmp/skill-repo/skills/$SKILL_NAME
-# Write SKILL.md here...
-
-# 3. Commit and push
 cd /tmp/skill-repo
-git add skills/$SKILL_NAME/
-git commit -m "feat: add $SKILL_NAME skill"
-git push origin main
+git remote set-url origin https://${GITHUB_PAT}@github.com/andy304yang/skill.git
+git pull origin main --ff-only
 ```
 
-## Component Repo
+## Pitfalls
 
-Currently empty. To populate it:
+- **Push rejected with "repository rule violations"**: You hardcoded a `ghp_` token in a skill file. Rewrite the skill to use `~/.git-credentials` + runtime extraction. Then `git reset --soft HEAD~1`, rewrite, re-add, and push.
+- **Author identity unknown**: Set `git config user.email` and `user.name` before committing in fresh clones.
 
-```bash
-GITHUB_PAT=$(grep -o 'ghp_[^@]*' ~/.git-credentials | head -1)
-cd /tmp/Component
+## Skill Format
 
-# Example: initialize with a component package structure
-mkdir -p src/components
-# Add your components...
+Each skill needs:
+- `SKILL.md` with YAML frontmatter (`name`, `description`)
+- Clear trigger conditions in description field
+- Numbered steps with exact commands
+- Verification steps
+- **NO secrets/tokens** — reference `~/.git-credentials` instead
 
-git add .
-git commit -m "feat: initial components"
-git push origin main
+```yaml
+---
+name: my-skill
+description: "Do X. Use when user wants X. Prerequisites: A, B."
+---
 ```
-
-## Important: No Secrets in Files
-
-Never write actual tokens or PATs into any markdown/code files. Use `~/.git-credentials` at runtime. GitHub will block pushes containing secrets.
