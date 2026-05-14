@@ -28,6 +28,15 @@ metadata:
 # 3. GitHub API 推送
 # 4. SSH 部署
 ```
+## 快速使用
+
+```bash
+# 用户说"推送 Blog"时，执行以下完整流程
+# 1. 读取 repo-management 获取仓库配置
+# 2. 先 SSH 部署（服务器已有最新代码，通过 git fetch/reset 拉取）
+# 3. GitHub API 推送
+# 4. 部署成功后通知用户
+```
 
 ## 完整流程详解
 
@@ -46,33 +55,92 @@ OWNER_REPO=$(echo "$REMOTE_URL" | sed -E 's|.*github\.com[:/]||; s|\.git$||')
 # 结果: andy304yang/Blog
 ```
 
-### Step 1: 读取 Token
+### Step 1: SSH 先部署（服务器拉取最新代码）
+
+**先部署，后推送。** 服务器代码更新后再推送 GitHub，确保 GitHub 和服务器同步。
+
+根据 repo-management 中的 `deploy_method` 选择部署方式：
+
+#### 方式 A: 单容器 docker (Blog 专用)
 
 ```bash
-python3 -c "
-with open('/home/agentuser/.hermes/.env') as f:
-    for line in f:
-        if line.startswith('GITHUB_TOKEN='):
-            token = line.split('=', 1)[1].strip()
-            with open('/tmp/token.txt', 'w') as out:
-                out.write(token)
-            print(f'Token ready, length: {len(token)}')
-            break
-"
+ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84 << 'EOF'
+cd /home/ubuntu/blog
+
+# 同步代码（如果服务器有本地 commit 分歧，用 reset --hard）
+git fetch origin
+git reset --hard origin/master
+
+# 清理 builder cache 防止磁盘空间不足
+sudo docker builder prune -f
+
+# 构建镜像
+sudo docker build --no-cache -t blog-app-new /home/ubuntu/blog
+
+# 重启容器（--network dream_web + --network-alias saylo-blog 供 nginx 解析）
+sudo docker stop blog-app && sudo docker rm blog-app
+sudo docker run -d --name blog-app \
+  --network dream_web \
+  --network-alias saylo-blog \
+  -p 3001:3000 \
+  blog-app-new
+
+# 重启 nginx 让 upstream 生效
+sudo docker restart dream-nginx
+
+# 验证域名访问
+HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' https://mclarenai.cn)
+echo "HTTP: $HTTP_CODE"
+EOF
 ```
 
-### Step 2: 获取当前分支和变更文件
+**⚠️ 关键：`--network-alias saylo-blog` 必须加**，否则 nginx upstream `saylo-blog` 无法解析，会 502。
+
+#### 方式 B: docker compose
 
 ```bash
-cd /home/agentuser/blog-temp
-BRANCH=$(git branch --show-current)
-echo "Branch: $BRANCH"
-
-# 查看变更
-git status --short
+ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84 << 'EOF'
+cd /home/ubuntu/blog
+git pull origin master
+sudo docker compose down
+sudo docker compose up --build -d
+sudo docker ps | grep blog-app
+EOF
 ```
 
-### Step 3: GitHub API 推送
+#### 方式 C: git pull + 重启服务
+
+```bash
+ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84 << 'EOF'
+cd /path/to/repo
+git pull origin master
+sudo systemctl restart your-service
+EOF
+```
+
+### Step 2: 验证部署成功后再推送 GitHub
+
+部署成功（HTTP 200）后，再推送 GitHub。如果部署失败，**不要推送**，先排查问题。
+
+```bash
+# 检查容器状态
+ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84 "sudo docker ps | grep blog-app"
+
+# 检查域名访问（通过 Nginx，验证 200 才算成功）
+curl -sI https://mclarenai.cn/ | head -3
+# 期望: HTTP/1.1 200 OK
+
+# 如果域名 502，先验证 IP 直连是否正常
+curl -sI http://81.71.29.84:3001 | head -3
+```
+
+### Step 3: 读取 Token
+
+```bash
+python3 -c "nwith open('/home/agentuser/.hermes/.env') as f:n    for line in f:n        if line.startswith('GITHUB_TOKEN='):n            token = line.split('=', 1)[1].strip()n            with open('/tmp/token.txt', 'w') as out:n                out.write(token)n            print(f'Token ready, length: {len(token)}')n            breakn"
+```
+
+### Step 4: GitHub API 推送
 
 #### 推送单个文件
 
@@ -176,81 +244,13 @@ for file_path in files_to_push:
         print(f"⏭️  {file_path} not found, skipping")
 ```
 
-### Step 4: SSH 到服务器部署
-
-根据 repo-management 中的 `deploy_method` 选择部署方式：
-
-#### 方式 A: docker compose
-
-```bash
-ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84 << 'EOF'
-cd /home/ubuntu/blog
-git pull origin master
-sudo docker compose down
-sudo docker compose up --build -d
-sudo docker ps | grep blog-app
-EOF
-```
-
-#### 方式 B: 单容器 docker (Blog 专用)
-
-```bash
-ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84 << 'EOF'
-cd /home/ubuntu/blog
-
-# 同步代码（如果服务器有本地 commit 分歧，用 reset --hard）
-git fetch origin
-git reset --hard origin/master
-
-# 清理 builder cache 防止磁盘空间不足
-sudo docker builder prune -f
-
-# 构建镜像
-sudo docker build --no-cache -t blog-app:latest .
-
-# 重启容器（--network dream_web + --network-alias saylo-blog 供 nginx 解析）
-sudo docker stop blog-app && sudo docker rm blog-app
-sudo docker run -d --name blog-app \
-  --network dream_web \
-  --network-alias saylo-blog \
-  -p 3001:3000 \
-  blog-app:latest
-
-# 重启 nginx 让 upstream 生效（nginx -t 会因为 saylo-blog 无法解析而失败）
-sudo docker restart dream-nginx
-
-# 验证域名访问
-curl -sI https://mclarenai.cn/ | head -3
-EOF
-```
-
-**⚠️ 关键：`--network-alias saylo-blog` 必须加**，否则 nginx upstream `saylo-blog` 无法解析，会 502。
-
-#### 方式 C: git pull + 重启服务
-
-```bash
-ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84 << 'EOF'
-cd /path/to/repo
-git pull origin master
-sudo systemctl restart your-service
-EOF
-```
-
-### Step 5: 验证部署
-
-```bash
-# 检查容器状态
-ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84 "sudo docker ps | grep blog-app"
-
-# 检查域名访问（通过 Nginx，验证 200 才算成功）
-curl -sI https://mclarenai.cn/ | head -3
-# 期望: HTTP/1.1 200 OK
-
-# 如果域名 502，先验证 IP 直连是否正常
-curl -sI http://81.71.29.84:3001 | head -3
-```
-
 ## 错误处理
+
+### 部署失败
+
+- **不要推送 GitHub**，先排查部署问题
+- 常见问题：Docker 构建超时、端口被占用、网络配置错误
+- 排查顺序：容器日志 → Docker 状态 → Nginx 配置 → 代码变更
 
 ### Token 无效
 
@@ -279,13 +279,3 @@ sha = get_sha('src/lib/posts.ts')
 # 测试 SSH 连接
 ssh -i /home/agentuser/ssh.pem -o ConnectTimeout=10 ubuntu@81.71.29.84 "echo connected"
 ```
-
-## repo-management 联动
-
-当仓库配置变更时：
-1. 更新 `repo-management` skill 中对应仓库的配置
-2. 如果是 Blog/Dream 等已有专门 deploy skill 的项目，同步更新那些 skill
-
-当需要添加新仓库时：
-1. 在 `repo-management` 中添加新条目
-2. 此 skill 即可自动支持推送该仓库
