@@ -98,13 +98,13 @@ nginx_routes:
   /api/: dream-backend:8000
 ```
 
-### Component (组件库)
+### Component (组件库 Storybook)
 
 ```yaml
 github: andy304yang/component
 local: /home/agentuser/component-temp
 branch: master
-deploy_method: docker
+deploy_method: docker-static  # build-storybook 静态部署
 server:
   ip: 81.71.29.84
   ssh_key: /home/agentuser/ssh.pem
@@ -114,13 +114,25 @@ docker:
   port: "3002:80"
   network: dream_web
 build_commands:
-  - docker build --no-cache -t component-app:latest .
+  - npm install
+  - npm run build-storybook
+  - docker build -t component-app:latest .
 deploy_commands:
   - docker stop component-app || true
   - docker rm component-app || true
   - docker run -d --name component-app --network dream_web -p 3002:80 component-app:latest
-nginx_route: /component/  # Nginx 路由 /component/
+nginx_route: /component/
+nginx_assets_route: /assets/  # component 的静态资源用 /assets/ 路径
 ```
+
+**部署流程（本地构建 + scp 传输）**：
+1. 本地 `npm install && npm run build-storybook`
+2. 本地 `docker build -t component-app:latest .`
+3. 本地 `docker save component-app:latest -o /tmp/component-app.tar`
+4. `cat /tmp/component-app.tar | ssh -i key server "docker load -i /tmp/component-app.tar"`（绕过 scp 权限问题）
+5. SSH 重启容器
+
+**⚠️ 关键：sudo 权限文件无法 scp**，用 `cat | ssh` pipe 方式传输
 
 ---
 
