@@ -68,6 +68,8 @@ git pull origin main --ff-only
 
 - **Push rejected with "repository rule violations"**: You hardcoded a `ghp_` token in a skill file. Rewrite the skill to use `~/.git-credentials` + runtime extraction. Then `git reset --soft HEAD~1`, rewrite, re-add, and push.
 - **Author identity unknown**: Set `git config user.email` and `user.name` before committing in fresh clones.
+- **GnuTLS recv error (-110) when pushing**: `git config --global --unset http.sslBackend` if it was set to `openssl`. The agent environment may have a stale `openssl` backend config that conflicts with the system GnuTLS. Retry push after unsetting.
+- **scp to /tmp/ fails with "Permission denied" on remote server**: Ubuntu's `/tmp/` on the cloud server often restricts write access. Use `/home/ubuntu/` as the scp destination instead (e.g. `scp file ubuntu@host:/home/ubuntu/file`), then `docker cp` from there.
 
 ## Skill Format
 

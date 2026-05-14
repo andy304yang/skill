@@ -66,11 +66,17 @@ Inside container: `/etc/nginx/http.d/default.conf`
 
 To update Nginx config:
 ```bash
-# Copy config out
-ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84   "sudo docker cp dream-nginx:/etc/nginx/http.d/default.conf /home/ubuntu/default.conf"
+# Copy config out (use /home/ubuntu/ as intermediate — /tmp/ is often permission-denied on cloud servers)
+ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84 \
+  "sudo docker cp dream-nginx:/etc/nginx/http.d/default.conf /home/ubuntu/default.conf"
 
-# Edit /home/ubuntu/default.conf locally, then:
-ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84   "sudo docker cp /home/ubuntu/default.conf dream-nginx:/etc/nginx/http.d/default.conf &&    sudo docker exec dream-nginx nginx -t &&    sudo docker exec dream-nginx nginx -s reload"
+# Edit /home/ubuntu/default.conf locally, then upload back:
+scp -i /home/agentuser/ssh.pem /path/to/new/default.conf ubuntu@81.71.29.84:/home/ubuntu/default.conf
+
+ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84 \
+  "sudo docker cp /home/ubuntu/default.conf dream-nginx:/etc/nginx/http.d/default.conf && \
+   sudo docker exec dream-nginx nginx -t && \
+   sudo docker exec dream-nginx nginx -s reload"
 ```
 
 Key routing in Nginx:
