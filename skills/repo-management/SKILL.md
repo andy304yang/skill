@@ -150,6 +150,58 @@ echo "Current repo: $OWNER_REPO"
 
 ---
 
+## Skill 仓库
+
+本地 skills 目录就是 GitHub skill 仓库：
+
+- **本地路径**: `~/.hermes/skills/`
+- **GitHub 仓库**: `https://github.com/andy304yang/skill`
+- **推送方式**: 通过 `github-push` skill 使用 GitHub API 推送文件
+
+### 同步新 skill 到 GitHub
+
+当创建/更新 skill 后，推送到 GitHub：
+
+```python
+import urllib.request, json, base64
+
+token = open('/tmp/token.txt').read().strip()
+repo = 'andy304yang/skill'
+branch = 'main'
+
+local_skill_path = '/home/agentuser/.hermes/skills/github/repo-management/SKILL.md'
+github_skill_path = 'skills/repo-management/SKILL.md'
+
+# 获取当前 SHA
+req = urllib.request.Request(
+    f'https://api.github.com/repos/{repo}/contents/{github_skill_path}',
+    headers={'Authorization': f'token {token}', 'Accept': 'application/json'}
+)
+try:
+    with urllib.request.urlopen(req) as resp:
+        sha = json.loads(resp.read())['sha']
+except:
+    sha = ''
+
+# 推送
+content = open(local_skill_path).read()
+payload = json.dumps({
+    'message': 'Add: repo-management skill',
+    'content': base64.b64encode(content.encode()).decode(),
+    'sha': sha,
+    'branch': branch
+}).encode()
+
+req = urllib.request.Request(
+    f'https://api.github.com/repos/{repo}/contents/{github_skill_path}',
+    data=payload,
+    headers={'Authorization': f'token {token}', 'Accept': 'application/json'},
+    method='PUT'
+)
+with urllib.request.urlopen(req) as resp:
+    print("✅ Pushed!")
+```
+
 ## 添加新仓库
 
 当用户告知新项目需要部署时：
