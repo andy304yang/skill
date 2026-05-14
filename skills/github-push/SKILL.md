@@ -273,7 +273,36 @@ with urllib.request.urlopen(req) as resp:
 sha = get_sha('src/lib/posts.ts')
 ```
 
-### SSH 连接失败
+### 部署失败时应急方案：本地构建 + scp 镜像
+
+如果服务器访问 GitHub 网络不稳定（git fetch 超时），改用本地构建 + scp 传输镜像：
+
+```bash
+# 1. 本地构建镜像
+cd /home/agentuser/blog-temp
+git fetch origin && git reset --hard origin/master  # 先同步本地代码
+sudo docker build --no-cache -t blog-app-new .
+
+# 2. 导出镜像并传输到服务器
+sudo docker save blog-app-new -o /tmp/blog-app-new.tar
+cp /tmp/blog-app-new.tar /home/agentuser/blog-app-new.tar
+scp -i /home/agentuser/ssh.pem /home/agentuser/blog-app-new.tar ubuntu@81.71.29.84:/home/ubuntu/blog-app-new.tar
+
+# 3. 服务器加载镜像并部署
+ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84 << 'EOF'
+sudo docker load -i /home/ubuntu/blog-app-new.tar
+sudo docker stop blog-app && sudo docker rm blog-app
+sudo docker run -d --name blog-app \
+  --network dream_web \
+  --network-alias saylo-blog \
+  -p 3001:3000 \
+  blog-app-new
+sudo docker restart dream-nginx
+curl -sI https://mclarenai.cn/ | head -3
+EOF
+```
+
+**注意**：scp 上传到 `/tmp/` 会有权限问题，服务器路径用 `/home/ubuntu/`。
 
 ```bash
 # 测试 SSH 连接
