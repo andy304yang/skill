@@ -192,17 +192,39 @@ sudo docker ps | grep blog-app
 EOF
 ```
 
-#### 方式 B: 单容器 docker
+#### 方式 B: 单容器 docker (Blog 专用)
 
 ```bash
 ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84 << 'EOF'
 cd /home/ubuntu/blog
+
+# 同步代码（如果服务器有本地 commit 分歧，用 reset --hard）
+git fetch origin
+git reset --hard origin/master
+
+# 清理 builder cache 防止磁盘空间不足
+sudo docker builder prune -f
+
+# 构建镜像
 sudo docker build --no-cache -t blog-app:latest .
+
+# 重启容器（--network dream_web + --network-alias saylo-blog 供 nginx 解析）
 sudo docker stop blog-app && sudo docker rm blog-app
-sudo docker run -d --name blog-app --network dream_web -p 3001:3000 blog-app:latest
-sudo docker ps | grep blog-app
+sudo docker run -d --name blog-app \
+  --network dream_web \
+  --network-alias saylo-blog \
+  -p 3001:3000 \
+  blog-app:latest
+
+# 重启 nginx 让 upstream 生效（nginx -t 会因为 saylo-blog 无法解析而失败）
+sudo docker restart dream-nginx
+
+# 验证域名访问
+curl -sI https://mclarenai.cn/ | head -3
 EOF
 ```
+
+**⚠️ 关键：`--network-alias saylo-blog` 必须加**，否则 nginx upstream `saylo-blog` 无法解析，会 502。
 
 #### 方式 C: git pull + 重启服务
 
@@ -220,11 +242,12 @@ EOF
 # 检查容器状态
 ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84 "sudo docker ps | grep blog-app"
 
-# 检查 HTTP 响应
-curl -sI http://81.71.29.84:3001 | head -3
-
-# 或检查 HTTPS（通过 Nginx）
+# 检查域名访问（通过 Nginx，验证 200 才算成功）
 curl -sI https://mclarenai.cn/ | head -3
+# 期望: HTTP/1.1 200 OK
+
+# 如果域名 502，先验证 IP 直连是否正常
+curl -sI http://81.71.29.84:3001 | head -3
 ```
 
 ## 错误处理
