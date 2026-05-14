@@ -1,116 +1,105 @@
 ---
 name: personal-blog-deploy
-description: "Deploy and manage the personal blog (Next.js 15) on Tencent Cloud. Blog repo: github.com/andy304yang/Blog. Server: 81.71.29.84, SSH via /home/agentuser/ssh.pem. Container: blog (port 3000), Nginx reverse proxy. Use when user asks to deploy, update, or manage the personal blog site."
+description: "Deploy and manage the personal blog (Next.js 15) on Tencent Cloud. Blog repo: github.com/andy304yang/Blog. Server: 81.71.29.84, SSH via /home/agentuser/ssh.pem. Container: blog-app (port 3001), Nginx reverse proxy dream-nginx. Use when user asks to deploy, update, or manage the personal blog site."
 ---
 
 # Personal Blog Deploy Skill
 
-Deploy, update, and manage the personal blog at `https://mclarenai.cn` (or `http://81.71.29.84`).
+Deploy, update, and manage the personal blog at `https://mclarenai.cn`.
 
 ## Blog Info
 
-- **Type**: Next.js 15 personal portfolio/blog
-- **GitHub**: `github.com/andy304yang/Blog`
+- **Type**: Next.js 15 personal portfolio/blog (standalone output)
+- **GitHub**: `github.com/andy304yang/Blog` (branch: `master`)
 - **Server IP**: `81.71.29.84`
 - **SSH**: `ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84`
-- **Blog path on server**: `/opt/blog/`
-- **Docker container**: `blog` (port 3000)
-- **Nginx container**: `dream-nginx` (proxies to `blog:3000`)
+- **Blog path on server**: `/home/ubuntu/blog/`
+- **Docker container**: `blog-app` (port 3001:3000, network: `dream_web`)
+- **Nginx hostname**: `saylo-blog` (aliased to blog-app on dream_web network)
+- **Nginx container**: `dream-nginx` (HTTPS on 443, proxies `/` → `saylo-blog:3000`)
+- **ICP备案**: 粤ICP备2026057233号-1
 
-## GitHub Auth (for git push from server)
+## GitHub Auth
 
 The GitHub PAT is stored in `~/.git-credentials`. Read it before use:
 
 ```bash
-GITHUB_PAT=$(cat ~/.git-credentials | sed 's|https://||; s|@github.com||')
-# Or extract just the token:
 GITHUB_PAT=$(grep -o 'ghp_[^@]*' ~/.git-credentials | head -1)
-echo "Token loaded: ${GITHUB_PAT:0:8}..."
 ```
-
-If credentials file doesn't exist, you need to ask the user for the GitHub PAT.
 
 ## Deploy / Update Flow
 
-### Option A: Pull latest from GitHub on server
+### Option A: Pull from GitHub on server + rebuild (recommended)
 
 ```bash
 ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84 << 'EOF'
 GITHUB_PAT=$(grep -o 'ghp_[^@]*' ~/.git-credentials | head -1)
-cd /opt/blog
+cd /home/ubuntu/blog
 git remote set-url origin https://${GITHUB_PAT}@github.com/andy304yang/Blog.git
-git pull origin main
+git pull origin master
 
-# Rebuild Docker container
-sudo docker compose -f /opt/blog/docker-compose.yml down
-sudo docker compose -f /opt/blog/docker-compose.yml up -d --build
+# Rebuild Docker image
+sudo docker build --no-cache -t blog-app:latest .
 
-# Check logs if needed
-sudo docker logs blog --tail 20
+# Restart container (on dream_web network)
+sudo docker stop blog-app && sudo docker rm blog-app
+sudo docker run -d --name blog-app --network dream_web -p 3001:3000 blog-app:latest
 EOF
 ```
 
-### Option B: Full redeploy from local build
+### Option B: Local code → push to GitHub → rebuild on server
 
 ```bash
-# 1. Build locally (from /tmp/blog-site or wherever the code is)
-cd /path/to/blog
-npm install
-npm run build
-
-# 2. Tar and upload to server
-tar czf blog-code.tar.gz -C /path/to/blog --exclude='node_modules' --exclude='.next' .
-scp -i /home/agentuser/ssh.pem blog-code.tar.gz ubuntu@81.71.29.84:/home/ubuntu/
-
-# 3. Deploy on server
-ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84 << 'EOF'
-cd /opt/blog
-sudo rm -rf *
-sudo tar xzf /home/ubuntu/blog-code.tar.gz --strip-components=1
-
-# Rebuild and restart
-sudo docker compose down
-sudo docker compose up -d --build
-EOF
-```
-
-### Option C: Direct git push to GitHub from local/agent
-
-```bash
-# Get token from credentials
+# 1. Edit code locally (e.g. /tmp/Blog)
+# 2. Commit and push to GitHub
 GITHUB_PAT=$(grep -o 'ghp_[^@]*' ~/.git-credentials | head -1)
-
-cd /path/to/blog
+cd /path/to/Blog
 git remote set-url origin https://${GITHUB_PAT}@github.com/andy304yang/Blog.git
-git add .
-git commit -m "update"
-git push origin main
+git add . && git commit -m "update" && git push origin master
+
+# 3. Pull on server and rebuild (same as Option A)
 ```
 
-## Nginx Config (if needed)
+## Nginx Config Location
 
-The Nginx container (`dream-nginx`) proxies `mclarenai.cn` to `blog:3000`. Config location inside container: `/etc/nginx/http.d/default.conf`.
+Inside container: `/etc/nginx/http.d/default.conf`
 
-If you need to update Nginx config:
+To update Nginx config:
 ```bash
-ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84
-sudo docker cp dream-nginx:/etc/nginx/http.d/default.conf /tmp/default.conf
-# Edit /tmp/default.conf, change upstream blog:3000 if needed
-sudo docker cp /tmp/default.conf dream-nginx:/etc/nginx/http.d/default.conf
-sudo docker exec dream-nginx nginx -s reload
+# Copy config out
+ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84   "sudo docker cp dream-nginx:/etc/nginx/http.d/default.conf /home/ubuntu/default.conf"
+
+# Edit /home/ubuntu/default.conf locally, then:
+ssh -i /home/agentuser/ssh.pem ubuntu@81.71.29.84   "sudo docker cp /home/ubuntu/default.conf dream-nginx:/etc/nginx/http.d/default.conf &&    sudo docker exec dream-nginx nginx -t &&    sudo docker exec dream-nginx nginx -s reload"
 ```
+
+Key routing in Nginx:
+- `/` → `saylo-blog:3000` (blog)
+- `/dream/` → `dream-app:3000`
+- `/component/` → `component-app:80`
+- `/api/` → `dream-backend:8000`
 
 ## Verify Deployment
 
 ```bash
-curl -s http://localhost:3000 | head -20
-# Or from outside:
-curl -s -k https://mclarenai.cn | head -20
+curl -sI https://mclarenai.cn/ | head -3
+curl -s https://mclarenai.cn/ | grep -o '粤ICP备[^<]*'
 ```
 
 ## Troubleshooting
 
-- **Container won't start**: `sudo docker logs blog`
-- **Port 3000 not responding**: Check if container is running `sudo docker ps | grep blog`
-- **Build fails**: Check Node version - needs Node 18+
-- **Nginx 502**: Check if `blog` container is healthy `sudo docker inspect blog`
+- **Container won't start**: `sudo docker logs blog-app`
+- **Port conflict**: `sudo docker ps | grep 3001`
+- **Build fails**: Check Node version (needs Node 18+), clear `.next` cache
+- **Nginx 502**: Check if `blog-app` container is on `dream_web` network and running
+- **saylo-blog not resolved**: `sudo docker exec dream-nginx getent hosts saylo-blog`
+
+## Adding ICP备案号 to Footer
+
+In `src/app/page.tsx`, footer section:
+```tsx
+<p className="text-xs text-slate-700">
+  © {new Date().getFullYear()} Saylo · Built with Next.js · 
+  <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" className="hover:text-slate-500 transition-colors">粤ICP备2026057233号-1</a>
+</p>
+```
