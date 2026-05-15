@@ -19,7 +19,10 @@ Extract nodes, inspect designs, and download rendered images from Figma files us
 2. Click **Generate new token** → name it → copy the token (starts with `figd_`)
 3. Provide the token to the agent
 
-Token format: `figd_xxxx`（用户提供的 token，运行时传入，不写在文件里）
+Token 从 `~/.figma-token` 文件读取（每行一个 token，支持多行追加）
+```bash
+FIGMA_TOKEN=$(cat ~/.figma-token)
+```
 
 ## 2. API Base
 
