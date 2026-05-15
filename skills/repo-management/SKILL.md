@@ -101,7 +101,7 @@ nginx_routes:
 ### Component (组件库 Storybook)
 
 ```yaml
-github: andy304yang/component
+github: andy304yang/Component
 local: /home/agentuser/component-temp
 branch: master
 deploy_method: docker-static  # build-storybook 静态部署
@@ -120,7 +120,7 @@ build_commands:
 deploy_commands:
   - docker stop component-app || true
   - docker rm component-app || true
-  - docker run -d --name component-app --network dream_web -p 3002:80 component-app:latest
+  - docker run -d --name component-app --network dream_web -p 3002:80 --restart unless-stopped component-app:latest
 nginx_route: /component/
 nginx_assets_route: /assets/  # component 的静态资源用 /assets/ 路径
 ```
@@ -133,6 +133,36 @@ nginx_assets_route: /assets/  # component 的静态资源用 /assets/ 路径
 5. SSH 重启容器
 
 **⚠️ 关键：sudo 权限文件无法 scp**，用 `cat | ssh` pipe 方式传输
+
+---
+
+### Flow (前端可视化流程工具)
+
+```yaml
+github: andy304yang/Flow
+local: /home/agentuser/flow-temp
+branch: master
+deploy_method: docker-static  # Vite build 静态部署
+tech_stack: Vite + React + TypeScript
+build_commands:
+  - npm install
+  - npm run build
+  - docker build -t flow-app:latest .
+deploy_commands:
+  - docker stop flow-app 2>/dev/null || true
+  - docker rm flow-app 2>/dev/null || true
+  - docker run -d --name flow-app --network dream_web -p 3003:80 --restart unless-stopped flow-app:latest
+nginx_route: /flow/
+```
+
+**部署流程（本地构建 + scp 传输）**：
+1. 本地 `npm install && npm run build`
+2. 本地 `docker build -t flow-app:latest .`
+3. `cat /tmp/flow-app.tar | ssh -i key server "sudo docker load -i /tmp/flow-app.tar"`
+4. SSH 重启容器
+5. Nginx 添加 `/flow/` 路由指向 `flow-app:80`
+
+**⚠️ sudo 权限文件无法 scp**，用 `cat | ssh | sudo docker load` 方式传输
 
 ---
 
