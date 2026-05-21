@@ -1,6 +1,6 @@
 ---
 name: api-gen
-description: "Generate a type-safe TypeScript API client from a Swagger/OpenAPI spec using the qxun-api-generator npm package. Creates an api-generator folder, writes api.json config, asks the user for their Swagger URL, then runs npx qxun-api-generator. Use when the user wants to generate API client from swagger, create typed API hooks, auto-generate frontend API code from OpenAPI spec."
+description: "Generate a type-safe TypeScript API client from a Swagger/OpenAPI spec using the qxun-api-generator npm package. Creates src/apis/api.json config with baseUrls (sit/uat/prod), runs generator from src/apis/, outputs to src/apis/<service-name>/. Use when the user wants to generate API client from swagger, create typed API hooks, auto-generate frontend API code from OpenAPI spec."
 ---
 
 # API Generator Skill
