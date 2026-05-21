@@ -47,8 +47,8 @@ Before creating any files, determine two things:
    - If NOT found, create `src/utils/http.ts` with the content from the **Appendix** below, and use `../../src/utils/http` as the import path.
 
 Set these two variables for use in later steps:
-- `HTTP_IMPORT_PATH` = the relative path calculated above (without extension)
-- `API_GENERATOR_DIR` = `<project-root>/api-generator`
+- `HTTP_IMPORT_PATH` = the relative import path from `src/apis/<service-name>/` to the http file (e.g. `../../utils/http`)
+- `APIS_DIR` = `<project-root>/src/apis`
 
 ---
 
@@ -66,17 +66,17 @@ Store the answers as `SIT_URL`, `UAT_URL`, `PROD_URL` for use in Step 2.
 
 ---
 
-### Step 2 — Create `api-generator/` Directory and `api.json`
+### Step 2 — Create `src/apis/` Directory and `api.json`
 
-Create the `api-generator/` directory at the project root if it does not already exist.
+Create the `src/apis/` directory at the project root if it does not already exist.
 
-Then create or update `api-generator/api.json`. If the file already exists, read it first and add the new service entry to the `apis` array without removing existing entries.
+Then create or update `src/apis/api.json`. If the file already exists, read it first and add the new service entry to the `apis` array without removing existing entries.
 
 The `api.json` content:
 
 ```json
 {
-  "$schema": "../node_modules/qxun-api-generator/lib/schema.json",
+  "$schema": "../../node_modules/qxun-api-generator/lib/schema.json",
   "apis": [
     {
       "service": "<service-name>",
@@ -96,11 +96,12 @@ The `api.json` content:
 Replace:
 - `<service-name>` with the service name (e.g. `candidate`) — only in the `service` field
 - `<swagger-url>` with the full Swagger JSON URL
-- `<HTTP_IMPORT_PATH>` with the relative import path calculated in Step 1
+- `<HTTP_IMPORT_PATH>` with the relative import path calculated in Step 1 (e.g. `../../utils/http`)
 - `<SIT_URL>`, `<UAT_URL>`, `<PROD_URL>` with the URLs from Step 1.5 (leave `""` if user skipped)
 
 **Important:**
-- `outputDir` is always `"./"` — the generator uses the `service` name to create a subdirectory automatically
+- `api.json` lives in `src/apis/` — so `$schema` is `../../node_modules/...`
+- `outputDir` is `"./"` — the generator creates `src/apis/<service-name>/` automatically
 - `baseUrls` is an object with `sit`, `uat`, `prod` keys — NOT a single `baseUrl` string
 - The `httpPath` value is a full TypeScript import statement, not a file path
 
@@ -121,16 +122,16 @@ npx qxun-api-generator --version 2>/dev/null
 
 ### Step 4 — Run the Generator
 
-Change into the `api-generator/` directory and run the generator:
+Change into the `src/apis/` directory and run the generator:
 
 ```bash
-cd <API_GENERATOR_DIR> && npx qxun-api-generator
+cd <APIS_DIR> && npx qxun-api-generator
 ```
 
 If the command fails with an auth error, ask the user for an Authorization token and retry:
 
 ```bash
-cd <API_GENERATOR_DIR> && npx qxun-api-generator --auth "Bearer <token>"
+cd <APIS_DIR> && npx qxun-api-generator --auth "Bearer <token>"
 ```
 
 Report whether the generation succeeded or failed, and list the output files created.
@@ -140,10 +141,10 @@ Report whether the generation succeeded or failed, and list the output files cre
 ### Step 5 — Final Summary
 
 Tell the user:
-- The `api.json` location: `api-generator/api.json`
-- The generated files location: `api-generator/<service-name>/`
+- The `api.json` location: `src/apis/api.json`
+- The generated files location: `src/apis/<service-name>/`
 - The HTTP client location (created or existing)
-- How to regenerate: run `/api-gen <swagger-url> <service-name>` again whenever the backend updates the Swagger spec, or manually run `cd api-generator && npx qxun-api-generator`
+- How to regenerate: run `/api-gen <swagger-url> <service-name>` again whenever the backend updates the Swagger spec, or manually run `cd src/apis && npx qxun-api-generator`
 
 ---
 
