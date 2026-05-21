@@ -1,76 +1,142 @@
 ---
 name: api-gen
-description: "Generate a type-safe TypeScript API client from a Swagger/OpenAPI spec. Sets up a custom Axios HTTP client with auth, error handling, and global error events. Configures TanStack Query (useQuery/useMutation) patterns. Use when the user wants to generate API client from swagger, create typed API hooks, set up axios interceptors, integrate OpenAPI with React Query, auto-generate frontend API code."
+description: "Generate a type-safe TypeScript API client from a Swagger/OpenAPI spec using the qxun-api-generator npm package. Creates an api-generator folder, writes api.json config, asks the user for their Swagger URL, then runs npx qxun-api-generator. Use when the user wants to generate API client from swagger, create typed API hooks, auto-generate frontend API code from OpenAPI spec."
 ---
 
 # API Generator Skill
 
-Generate a type-safe TypeScript API client from a Swagger/OpenAPI spec, set up a custom HTTP client with error handling, and configure TanStack Query patterns.
+Generate a type-safe TypeScript API client from a Swagger/OpenAPI spec using the `qxun-api-generator` npm package.
 
 ## Usage
 
 ```
-/api-gen <swagger-url> [service-name] [output-dir]
+/api-gen [swagger-url] [service-name]
 ```
 
 **Arguments** (from `$ARGUMENTS`):
-- `swagger-url` — Remote Swagger JSON/YAML URL (required)
-- `service-name` — Name of the backend service, e.g. `user`, `order` (default: `api`)
-- `output-dir` — Where to write generated files (default: `src/api/<service-name>`)
+- `swagger-url` — Remote Swagger JSON URL (optional; will ask if not provided)
+- `service-name` — Name of the backend service, e.g. `consumer`, `user`, `order` (default: `api`)
 
 ---
 
 ## Instructions
 
-You are helping the user generate a frontend API client from a Swagger spec. Follow each step in order.
+Follow each step in order.
 
 ### Step 0 — Parse Arguments
 
 Parse `$ARGUMENTS`:
-- First token = swagger URL
+- First token = swagger URL (may be empty)
 - Second token = service name (default: `api`)
-- Third token = output dir (default: `src/api/<service-name>`)
 
-If no swagger URL is provided, ask the user for it before continuing.
+If no swagger URL is provided in `$ARGUMENTS`, ask the user:
+> "请提供 Swagger API 文档地址（例如：https://your-server.com/v3/api-docs/service）"
+
+Wait for the user's answer before continuing.
 
 ---
 
-### Step 1 — Check Prerequisites
+### Step 1 — Locate the Project Root and HTTP Utility
 
-Check each tool. **Only install if not already present — do NOT run the install command if the tool is already found.**
+Before creating any files, determine two things:
 
-```bash
-# Only run this if openapi-generator is NOT installed
-which openapi-generator
+1. **Project root** — look for `package.json` in the current directory or its parents. Use that directory as the project root.
+
+2. **HTTP utility import path** — check if `src/utils/http.ts` or `src/utils/request.ts` exists in the project root.
+   - If found, calculate the relative import path from `api-generator/` to that file. For example, if the file is at `src/utils/http.ts` and `api-generator/` is at the project root, the import is `../../src/utils/http`.
+   - If NOT found, create `src/utils/http.ts` with the content from the **Appendix** below, and use `../../src/utils/http` as the import path.
+
+Set these two variables for use in later steps:
+- `HTTP_IMPORT_PATH` = the relative path calculated above (without extension)
+- `API_GENERATOR_DIR` = `<project-root>/api-generator`
+
+---
+
+### Step 2 — Create `api-generator/` Directory and `api.json`
+
+Create the `api-generator/` directory at the project root if it does not already exist.
+
+Then create or update `api-generator/api.json`. If the file already exists, read it first and add the new service entry to the `apis` array without removing existing entries.
+
+The `api.json` content:
+
+```json
+{
+  "$schema": "../node_modules/qxun-api-generator/lib/schema.json",
+  "apis": [
+    {
+      "service": "<service-name>",
+      "outputDir": "../src/apis/<service-name>",
+      "path": "<swagger-url>",
+      "httpPath": "import { http as globalAxios } from '<HTTP_IMPORT_PATH>'",
+      "baseUrl": ""
+    }
+  ]
+}
 ```
 
-- If the above returns a path → already installed, skip. Do NOT run brew install.
-- If it returns nothing → run: `brew install openapi-generator`
+Replace:
+- `<service-name>` with the service name (e.g. `consumer`) — replace in both `service` and `outputDir`
+- `<swagger-url>` with the full Swagger JSON URL
+- `<HTTP_IMPORT_PATH>` with the relative import path calculated in Step 1
+
+**Important:** `outputDir` is relative to `api-generator/`, so `../src/apis/<service-name>` puts the generated files at `src/apis/<service-name>` in the project root. The `httpPath` value is a full TypeScript import statement, not a file path.
+
+---
+
+### Step 3 — Install qxun-api-generator if Needed
+
+Check if the package is available:
 
 ```bash
-# Only run this if qxun-api-generator is NOT installed
 npx qxun-api-generator --version 2>/dev/null
 ```
 
-- If the above prints a version → already installed, skip. Do NOT run npm install.
-- If it fails → run: `npm install -g qxun-api-generator`
+- If it prints a version → already installed, skip.
+- If it fails → run: `npm install qxun-api-generator --save-dev` in the project root.
 
 ---
 
-### Step 2 — Create HTTP Client File
+### Step 4 — Run the Generator
 
-Check if `src/utils/http.ts` (or `src/utils/request.ts`) already exists. If it does, skip this step and use the existing path as `httpPath`.
+Change into the `api-generator/` directory and run the generator:
 
-If it does NOT exist, create `src/utils/http.ts` with this content:
+```bash
+cd <API_GENERATOR_DIR> && npx qxun-api-generator
+```
+
+The generator reads `api.json` from the current directory and outputs the generated TypeScript files into `src/apis/<service-name>/`.
+
+If the command fails with an auth error, ask the user for an Authorization token and retry:
+
+```bash
+cd <API_GENERATOR_DIR> && npx qxun-api-generator --auth "Bearer <token>"
+```
+
+Report whether the generation succeeded or failed, and list the output files created.
+
+---
+
+### Step 5 — Final Summary
+
+Tell the user:
+- The `api.json` location: `api-generator/api.json`
+- The generated files location: `src/apis/<service-name>/`
+- The HTTP client location (created or existing)
+- How to regenerate: run `/api-gen <swagger-url> <service-name>` again whenever the backend updates the Swagger spec, or manually run `cd api-generator && npx qxun-api-generator`
+
+---
+
+## Appendix — Default `src/utils/http.ts`
+
+Only create this file if no HTTP utility file exists in the project.
 
 ```typescript
 import axios, {
   type AxiosInstance,
-  type AxiosRequestConfig,
   type AxiosResponse,
 } from 'axios'
 
-// ---- Error code messages ----
 const ERROR_MESSAGES: Record<number, string> = {
   400: '请求参数错误',
   401: '未授权，请重新登录',
@@ -86,20 +152,18 @@ const ERROR_MESSAGES: Record<number, string> = {
   504: '网关超时',
 }
 
-const http: AxiosInstance = axios.create({
+export const http: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? '',
   timeout: 15_000,
   headers: { 'Content-Type': 'application/json' },
 })
 
-// ---- Request interceptor ----
 http.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
 
-// ---- Response interceptor ----
 http.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error) => {
@@ -109,10 +173,8 @@ http.interceptors.response.use(
     const message =
       serverMessage ?? (status ? ERROR_MESSAGES[status] : undefined) ?? '网络错误，请稍后重试'
 
-    // Emit a global error event — UI layer can listen and show toast/modal
     window.dispatchEvent(new CustomEvent('api-error', { detail: { status, message } }))
 
-    // Redirect to login on 401
     if (status === 401) {
       localStorage.removeItem('token')
       window.location.href = '/login'
@@ -121,124 +183,4 @@ http.interceptors.response.use(
     return Promise.reject(new Error(message))
   },
 )
-
-export default http
 ```
-
----
-
-### Step 3 — Create or Update `api.json`
-
-Read the existing `api.json` at the project root (if any). Add or update the entry for this service. Do NOT remove existing entries.
-
-The new entry:
-
-```json
-{
-  "service": "<service-name>",
-  "outputDir": "<output-dir>",
-  "path": "<swagger-url>",
-  "httpPath": "src/utils/http.ts"
-}
-```
-
-Full `api.json` shape:
-
-```json
-{
-  "apis": [
-    {
-      "service": "<service-name>",
-      "outputDir": "<output-dir>",
-      "path": "<swagger-url>",
-      "httpPath": "src/utils/http.ts"
-    }
-  ]
-}
-```
-
----
-
-### Step 4 — Run the Generator
-
-```bash
-npx qxun-api-generator
-```
-
-If the Swagger endpoint requires auth, prompt the user for the Authorization token and run:
-
-```bash
-npx qxun-api-generator --auth "Bearer <token>"
-```
-
-Report which services succeeded and which failed.
-
----
-
-### Step 5 — Show TanStack Query Usage Pattern
-
-After generation succeeds, print the following usage guide for the user and any future AI agent working in this project:
-
----
-
-#### How to call APIs in this project
-
-**Rule: always look up available APIs in the Swagger docs first (`<swagger-url>`), then use the generated typed client in `<output-dir>`.**
-
-Never hand-write fetch/axios calls. Use the generated API classes.
-
-##### GET request — `useQuery`
-
-```typescript
-import { useQuery } from '@tanstack/react-query'
-import { UserApi } from '@/api/<service-name>'
-
-const userApi = new UserApi()
-
-export function useUserProfile(userId: string) {
-  return useQuery({
-    queryKey: ['user', 'profile', userId],
-    queryFn: () => userApi.getUserById(userId).then((res) => res.data),
-  })
-}
-```
-
-##### POST / PUT / DELETE — `useMutation`
-
-```typescript
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { UserApi } from '@/api/<service-name>'
-
-const userApi = new UserApi()
-
-export function useUpdateUser() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (payload: UpdateUserDto) => userApi.updateUser(payload).then((res) => res.data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user'] })
-    },
-  })
-}
-```
-
-##### Error handling
-
-HTTP errors are intercepted globally in `src/utils/http.ts`. The `api-error` custom event fires on every error — wire it up in your root component:
-
-```typescript
-useEffect(() => {
-  const handler = (e: CustomEvent) => toast.error(e.detail.message)
-  window.addEventListener('api-error', handler as EventListener)
-  return () => window.removeEventListener('api-error', handler as EventListener)
-}, [])
-```
-
----
-
-### Step 6 — Final summary
-
-Tell the user:
-- Which files were created or updated
-- The path to the generated API client
-- Reminder: run the generator again (`/api-gen <swagger-url>`) whenever the backend updates the Swagger spec
