@@ -61,24 +61,20 @@ Ask the user:
 >
 > 如果暂时不知道可以直接回车跳过，之后手动填写 .env 文件。"
 
-After getting the answers, write/update the environment files at the project root:
+After getting the answers, write/update `.env` at the project root. Only add or update `VITE_API_BASE_URL_SIT` and `VITE_API_BASE_URL_PROD` — do not remove other variables.
 
-`.env.sit`:
 ```
-VITE_API_BASE_URL=<sit-url>
-```
-
-`.env.prod`:
-```
-VITE_API_BASE_URL=<prod-url>
+VITE_API_BASE_URL_SIT=<sit-url>
+VITE_API_BASE_URL_PROD=<prod-url>
 ```
 
-If the user skips, leave these files with a placeholder:
-```
-VITE_API_BASE_URL=
-```
+Also update `src/utils/http.ts` (or create it from the Appendix) so it picks the right URL based on the Vite mode:
 
-If the files already exist, only update the `VITE_API_BASE_URL` line — do not remove other variables.
+```typescript
+baseURL: import.meta.env.MODE === 'production'
+  ? import.meta.env.VITE_API_BASE_URL_PROD
+  : import.meta.env.VITE_API_BASE_URL_SIT,
+```
 
 ---
 
@@ -186,7 +182,9 @@ const ERROR_MESSAGES: Record<number, string> = {
 }
 
 export const http: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? '',
+  baseURL: import.meta.env.MODE === 'production'
+    ? import.meta.env.VITE_API_BASE_URL_PROD
+    : import.meta.env.VITE_API_BASE_URL_SIT,
   timeout: 15_000,
   headers: { 'Content-Type': 'application/json' },
 })
