@@ -1,6 +1,6 @@
 ---
 name: api-gen
-description: "Generate a type-safe TypeScript API client from a Swagger/OpenAPI spec using the qxun-api-generator npm package. Creates src/apis/api.json config with baseUrls (sit/uat/prod), runs generator from src/apis/, outputs to src/apis/<service-name>/. Use when the user wants to generate API client from swagger, create typed API hooks, auto-generate frontend API code from OpenAPI spec."
+description: "Generate a type-safe TypeScript API client from a Swagger/OpenAPI spec using the qxun-api-generator npm package. Creates src/apis/api.json config, runs generator from src/apis/, outputs to src/apis/<service-name>/. Use when the user wants to generate API client from swagger, create typed API hooks, auto-generate frontend API code from OpenAPI spec."
 ---
 
 # API Generator Skill
@@ -38,16 +38,14 @@ Wait for the user's answer before continuing.
 
 ### Step 1 — Locate the Project Root and HTTP Utility
 
-Before creating any files, determine two things:
+1. **Project root** — look for `package.json` in the current directory or its parents.
 
-1. **Project root** — look for `package.json` in the current directory or its parents. Use that directory as the project root.
+2. **HTTP utility import path** — check if `src/utils/http.ts` or `src/utils/request.ts` exists.
+   - If found, note the path.
+   - If NOT found, create `src/utils/http.ts` from the **Appendix** below.
 
-2. **HTTP utility import path** — check if `src/utils/http.ts` or `src/utils/request.ts` exists in the project root.
-   - If found, calculate the relative import path from `api-generator/` to that file. For example, if the file is at `src/utils/http.ts` and `api-generator/` is at the project root, the import is `../../src/utils/http`.
-   - If NOT found, create `src/utils/http.ts` with the content from the **Appendix** below, and use `../../src/utils/http` as the import path.
-
-Set these two variables for use in later steps:
-- `HTTP_IMPORT_PATH` = the relative import path from `src/apis/<service-name>/` to the http file (e.g. `../../utils/http`)
+Set:
+- `HTTP_IMPORT_PATH` = relative import path from `src/apis/` to the http file (e.g. `../utils/http`)
 - `APIS_DIR` = `<project-root>/src/apis`
 
 ---
@@ -55,24 +53,22 @@ Set these two variables for use in later steps:
 ### Step 1.5 — Ask for Environment Base URLs
 
 Ask the user:
-> "请提供各环境的 API base URL：
+> "请提供各环境的 API base URL（用于生成刷新脚本，之后可手动修改）：
 > - SIT（测试环境）base URL，例如 https://sit.example.com
 > - UAT（预发布环境）base URL，例如 https://uat.example.com
 > - PROD（生产环境）base URL，例如 https://api.example.com
 >
-> 如果暂时不知道可以直接回车跳过，之后手动填写 api.json。"
+> 如果暂时不知道可以直接回车跳过。"
 
-Store the answers as `SIT_URL`, `UAT_URL`, `PROD_URL` for use in Step 2.
+Store answers as `SIT_URL`, `UAT_URL`, `PROD_URL`.
 
 ---
 
 ### Step 2 — Create `src/apis/` Directory and `api.json`
 
-Create the `src/apis/` directory at the project root if it does not already exist.
+Create `src/apis/` if it doesn't exist.
 
-Then create or update `src/apis/api.json`. If the file already exists, read it first and add the new service entry to the `apis` array without removing existing entries.
-
-The `api.json` content:
+Create or update `src/apis/api.json` (merge if exists, do NOT remove other entries):
 
 ```json
 {
@@ -83,74 +79,76 @@ The `api.json` content:
       "outputDir": "./",
       "path": "<swagger-url>",
       "httpPath": "import { http as globalAxios } from '<HTTP_IMPORT_PATH>'",
-      "baseUrls": {
-        "sit": "<SIT_URL>",
-        "uat": "<UAT_URL>",
-        "prod": "<PROD_URL>"
-      }
+      "baseUrl": ""
     }
   ]
 }
 ```
 
-Replace:
-- `<service-name>` with the service name (e.g. `candidate`) — only in the `service` field
-- `<swagger-url>` with the full Swagger JSON URL
-- `<HTTP_IMPORT_PATH>` with the relative import path calculated in Step 1 (e.g. `../../utils/http`)
-- `<SIT_URL>`, `<UAT_URL>`, `<PROD_URL>` with the URLs from Step 1.5 (leave `""` if user skipped)
-
 **Important:**
-- `api.json` lives in `src/apis/` — so `$schema` is `../../node_modules/...`
-- `outputDir` is `"./"` — the generator creates `src/apis/<service-name>/` automatically
-- `baseUrls` is an object with `sit`, `uat`, `prod` keys — NOT a single `baseUrl` string
-- The `httpPath` value is a full TypeScript import statement, not a file path
+- `outputDir` is always `"./"` — generator creates `src/apis/<service-name>/` automatically
+- `baseUrl` is `""` — runtime baseURL comes from `http.ts` via env vars
+- `httpPath` is a full TypeScript import statement
 
 ---
 
-### Step 3 — Install qxun-api-generator if Needed
+### Step 3 — Create Refresh Script
 
-Check if the package is available:
+Create `src/apis/gen-api.sh`:
 
 ```bash
-npx qxun-api-generator --version 2>/dev/null
+#!/bin/bash
+# API 生成脚本 - 重新生成所有 API 客户端
+#
+# 各环境 base URL（在 src/utils/http.ts 中配置）:
+#   SIT:  <SIT_URL>
+#   UAT:  <UAT_URL>
+#   PROD: <PROD_URL>
+
+cd "$(dirname "$0")" && npx qxun-api-generator
 ```
 
-- If it prints a version → already installed, skip.
-- If it fails → run: `npm install qxun-api-generator --save-dev` in the project root.
+Then make it executable:
+```bash
+chmod +x src/apis/gen-api.sh
+```
 
 ---
 
-### Step 4 — Run the Generator
+### Step 4 — Install qxun-api-generator if Needed
 
-Change into the `src/apis/` directory and run the generator:
+```bash
+npx qxun-api-generator --version 2>/dev/null || npm install qxun-api-generator --save-dev
+```
+
+---
+
+### Step 5 — Run the Generator
 
 ```bash
 cd <APIS_DIR> && npx qxun-api-generator
 ```
 
-If the command fails with an auth error, ask the user for an Authorization token and retry:
-
+If auth error, ask user for token and retry:
 ```bash
 cd <APIS_DIR> && npx qxun-api-generator --auth "Bearer <token>"
 ```
 
-Report whether the generation succeeded or failed, and list the output files created.
-
 ---
 
-### Step 5 — Final Summary
+### Step 6 — Final Summary
 
 Tell the user:
-- The `api.json` location: `src/apis/api.json`
-- The generated files location: `src/apis/<service-name>/`
-- The HTTP client location (created or existing)
-- How to regenerate: run `/api-gen <swagger-url> <service-name>` again whenever the backend updates the Swagger spec, or manually run `cd src/apis && npx qxun-api-generator`
+- `src/apis/api.json` — config file
+- `src/apis/<service-name>/` — generated API client
+- `src/apis/gen-api.sh` — run this to regenerate anytime the backend updates the spec
+- Env URLs are noted as comments in the script; configure runtime baseURL in `src/utils/http.ts`
 
 ---
 
 ## Appendix — Default `src/utils/http.ts`
 
-Only create this file if no HTTP utility file exists in the project.
+Only create if no HTTP utility exists.
 
 ```typescript
 import axios, {
