@@ -58,12 +58,30 @@ head -c 10 "/Users/andy/Component/src/icons/svg/ICON_NAME.svg"
 cd /Users/andy/Component && npm run generate:icons
 ```
 
-### Step 4: Confirm result
+### Step 4: Publish to npm
+
+After generating the component, bump the patch version and publish:
+
+```bash
+# Bump patch version (0.0.1 → 0.0.2)
+cd /Users/andy/Component && npm version patch --no-git-tag-version
+
+# Build library
+npm run build:lib
+
+# Publish
+npm publish --access public
+```
+
+If the user says "don't publish" or "先不发布", skip this step.
+
+### Step 5: Confirm result
 
 Show the user:
 - Which `.svg` was saved
 - Which `.tsx` component was generated
 - The export name (e.g. `AttachmentIcon`) from `src/icons/index.ts`
+- The new npm version published (e.g. `@andy304/icons@0.0.2`)
 
 ## Notes
 
