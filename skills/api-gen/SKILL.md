@@ -52,29 +52,17 @@ Set these two variables for use in later steps:
 
 ---
 
-### Step 1.5 — Ask for SIT and PROD Base URLs
+### Step 1.5 — Ask for Environment Base URLs
 
 Ask the user:
-> "请提供两个环境的 API base URL：
-> - SIT（测试环境）base URL，例如 http://sit.example.com
+> "请提供各环境的 API base URL：
+> - SIT（测试环境）base URL，例如 https://sit.example.com
+> - UAT（预发布环境）base URL，例如 https://uat.example.com
 > - PROD（生产环境）base URL，例如 https://api.example.com
 >
-> 如果暂时不知道可以直接回车跳过，之后手动填写 .env 文件。"
+> 如果暂时不知道可以直接回车跳过，之后手动填写 api.json。"
 
-After getting the answers, write/update `.env` at the project root. Only add or update `VITE_API_BASE_URL_SIT` and `VITE_API_BASE_URL_PROD` — do not remove other variables.
-
-```
-VITE_API_BASE_URL_SIT=<sit-url>
-VITE_API_BASE_URL_PROD=<prod-url>
-```
-
-Also update `src/utils/http.ts` (or create it from the Appendix) so it picks the right URL based on the Vite mode:
-
-```typescript
-baseURL: import.meta.env.MODE === 'production'
-  ? import.meta.env.VITE_API_BASE_URL_PROD
-  : import.meta.env.VITE_API_BASE_URL_SIT,
-```
+Store the answers as `SIT_URL`, `UAT_URL`, `PROD_URL` for use in Step 2.
 
 ---
 
@@ -92,23 +80,28 @@ The `api.json` content:
   "apis": [
     {
       "service": "<service-name>",
-      "outputDir": "../src/apis",
+      "outputDir": "./",
       "path": "<swagger-url>",
       "httpPath": "import { http as globalAxios } from '<HTTP_IMPORT_PATH>'",
-      "baseUrl": ""
+      "baseUrls": {
+        "sit": "<SIT_URL>",
+        "uat": "<UAT_URL>",
+        "prod": "<PROD_URL>"
+      }
     }
   ]
 }
 ```
 
 Replace:
-- `<service-name>` with the service name (e.g. `consumer`) — only in the `service` field
+- `<service-name>` with the service name (e.g. `candidate`) — only in the `service` field
 - `<swagger-url>` with the full Swagger JSON URL
 - `<HTTP_IMPORT_PATH>` with the relative import path calculated in Step 1
+- `<SIT_URL>`, `<UAT_URL>`, `<PROD_URL>` with the URLs from Step 1.5 (leave `""` if user skipped)
 
 **Important:**
-- `outputDir` is always `"../src/apis"` — the generator automatically creates `src/apis/<service-name>/` using the `service` field value
-- `baseUrl` is always `""` — the actual base URL is read at runtime from `VITE_API_BASE_URL` in the axios instance
+- `outputDir` is always `"./"` — the generator uses the `service` name to create a subdirectory automatically
+- `baseUrls` is an object with `sit`, `uat`, `prod` keys — NOT a single `baseUrl` string
 - The `httpPath` value is a full TypeScript import statement, not a file path
 
 ---
@@ -134,8 +127,6 @@ Change into the `api-generator/` directory and run the generator:
 cd <API_GENERATOR_DIR> && npx qxun-api-generator
 ```
 
-The generator reads `api.json` from the current directory and outputs the generated TypeScript files into `src/apis/<service-name>/`.
-
 If the command fails with an auth error, ask the user for an Authorization token and retry:
 
 ```bash
@@ -150,7 +141,7 @@ Report whether the generation succeeded or failed, and list the output files cre
 
 Tell the user:
 - The `api.json` location: `api-generator/api.json`
-- The generated files location: `src/apis/<service-name>/`
+- The generated files location: `api-generator/<service-name>/`
 - The HTTP client location (created or existing)
 - How to regenerate: run `/api-gen <swagger-url> <service-name>` again whenever the backend updates the Swagger spec, or manually run `cd api-generator && npx qxun-api-generator`
 
@@ -182,9 +173,7 @@ const ERROR_MESSAGES: Record<number, string> = {
 }
 
 export const http: AxiosInstance = axios.create({
-  baseURL: import.meta.env.MODE === 'production'
-    ? import.meta.env.VITE_API_BASE_URL_PROD
-    : import.meta.env.VITE_API_BASE_URL_SIT,
+  baseURL: import.meta.env.VITE_API_BASE_URL ?? '',
   timeout: 15_000,
   headers: { 'Content-Type': 'application/json' },
 })
