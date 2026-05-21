@@ -52,6 +52,36 @@ Set these two variables for use in later steps:
 
 ---
 
+### Step 1.5 — Ask for SIT and PROD Base URLs
+
+Ask the user:
+> "请提供两个环境的 API base URL：
+> - SIT（测试环境）base URL，例如 http://sit.example.com
+> - PROD（生产环境）base URL，例如 https://api.example.com
+>
+> 如果暂时不知道可以直接回车跳过，之后手动填写 .env 文件。"
+
+After getting the answers, write/update the environment files at the project root:
+
+`.env.sit`:
+```
+VITE_API_BASE_URL=<sit-url>
+```
+
+`.env.prod`:
+```
+VITE_API_BASE_URL=<prod-url>
+```
+
+If the user skips, leave these files with a placeholder:
+```
+VITE_API_BASE_URL=
+```
+
+If the files already exist, only update the `VITE_API_BASE_URL` line — do not remove other variables.
+
+---
+
 ### Step 2 — Create `api-generator/` Directory and `api.json`
 
 Create the `api-generator/` directory at the project root if it does not already exist.
@@ -66,7 +96,7 @@ The `api.json` content:
   "apis": [
     {
       "service": "<service-name>",
-      "outputDir": "../src/apis/<service-name>",
+      "outputDir": "../src/",
       "path": "<swagger-url>",
       "httpPath": "import { http as globalAxios } from '<HTTP_IMPORT_PATH>'",
       "baseUrl": ""
@@ -76,11 +106,14 @@ The `api.json` content:
 ```
 
 Replace:
-- `<service-name>` with the service name (e.g. `consumer`) — replace in both `service` and `outputDir`
+- `<service-name>` with the service name (e.g. `consumer`) — only in the `service` field
 - `<swagger-url>` with the full Swagger JSON URL
 - `<HTTP_IMPORT_PATH>` with the relative import path calculated in Step 1
 
-**Important:** `outputDir` is relative to `api-generator/`, so `../src/apis/<service-name>` puts the generated files at `src/apis/<service-name>` in the project root. The `httpPath` value is a full TypeScript import statement, not a file path.
+**Important:**
+- `outputDir` is always `"../src/"` — the generator automatically creates `src/<service-name>/` using the `service` field value
+- `baseUrl` is always `""` — the actual base URL is read at runtime from `VITE_API_BASE_URL` in the axios instance
+- The `httpPath` value is a full TypeScript import statement, not a file path
 
 ---
 
