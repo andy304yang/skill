@@ -92,26 +92,35 @@ Create or update `src/apis/api.json` (merge if exists, do NOT remove other entri
 
 ---
 
-### Step 3 — Create Refresh Script
+### Step 3 — Update CLAUDE.md with Refresh Instructions
 
-Create `src/apis/gen-api.sh`:
+Check if `CLAUDE.md` exists at the project root.
+- If it exists, append the following section (only if it doesn't already contain `## API 刷新`).
+- If it doesn't exist, create it with the following content.
+
+```markdown
+## API 刷新
+
+To regenerate the API client when the backend updates the Swagger spec, run:
 
 ```bash
-#!/bin/bash
-# API 生成脚本 - 重新生成所有 API 客户端
-#
-# 各环境 base URL（在 src/utils/http.ts 中配置）:
-#   SIT:  <SIT_URL>
-#   UAT:  <UAT_URL>
-#   PROD: <PROD_URL>
-
-cd "$(dirname "$0")" && npx qxun-api-generator
+cd src/apis && npx qxun-api-generator
 ```
 
-Then make it executable:
-```bash
-chmod +x src/apis/gen-api.sh
+Or use the skill:
+
 ```
+/api-gen <swagger-url> <service-name>
+```
+
+### 已配置的服务
+
+| Service | Swagger URL | SIT | UAT | PROD |
+|---------|-------------|-----|-----|------|
+| <service-name> | <swagger-url> | <SIT_URL> | <UAT_URL> | <PROD_URL> |
+```
+
+Each time a new service is added via `/api-gen`, append a new row to the table.
 
 ---
 
@@ -141,8 +150,8 @@ cd <APIS_DIR> && npx qxun-api-generator --auth "Bearer <token>"
 Tell the user:
 - `src/apis/api.json` — config file
 - `src/apis/<service-name>/` — generated API client
-- `src/apis/gen-api.sh` — run this to regenerate anytime the backend updates the spec
-- Env URLs are noted as comments in the script; configure runtime baseURL in `src/utils/http.ts`
+- `CLAUDE.md` — updated with refresh command and service table; Claude reads this to know how to regenerate
+- Configure runtime baseURL in `src/utils/http.ts`
 
 ---
 
