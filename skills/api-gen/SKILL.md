@@ -92,7 +92,7 @@ The `api.json` content:
   "apis": [
     {
       "service": "<service-name>",
-      "outputDir": "../src/",
+      "outputDir": "../src/apis",
       "path": "<swagger-url>",
       "httpPath": "import { http as globalAxios } from '<HTTP_IMPORT_PATH>'",
       "baseUrl": ""
@@ -107,7 +107,7 @@ Replace:
 - `<HTTP_IMPORT_PATH>` with the relative import path calculated in Step 1
 
 **Important:**
-- `outputDir` is always `"../src/"` — the generator automatically creates `src/<service-name>/` using the `service` field value
+- `outputDir` is always `"../src/apis"` — the generator automatically creates `src/apis/<service-name>/` using the `service` field value
 - `baseUrl` is always `""` — the actual base URL is read at runtime from `VITE_API_BASE_URL` in the axios instance
 - The `httpPath` value is a full TypeScript import statement, not a file path
 
